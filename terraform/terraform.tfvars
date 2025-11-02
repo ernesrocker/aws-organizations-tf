@@ -1,0 +1,5 @@
+account_name      = "lab-organizations"
+account_email     = "example.gmail.com"
+account_role_name = "OrganizationAccountAccessRole"
+ou_name           = "lab-organizations-ou"
+aws_region        = "us-east-1"

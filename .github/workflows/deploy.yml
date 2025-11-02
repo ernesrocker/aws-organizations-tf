@@ -1,0 +1,56 @@
+name: Terraform CI/CD (GitHub OIDC)
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write' # required for OIDC
+    env:
+      AWS_REGION: us-east-1
+      # Terraform input variables can be supplied via TF_VAR_<name> environment variables.
+      # Store the real values as repository or environment secrets and reference them here.
+      TF_VAR_account_name: ${{ secrets.ACCOUNT_NAME }}
+      TF_VAR_account_email: ${{ secrets.ACCOUNT_EMAIL }}
+      # Optional: override other variables if needed
+      TF_VAR_account_role_name: ${{ secrets.ACCOUNT_ROLE_NAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: "1.5.0"
+
+      - name: Configure AWS credentials (assume-role via OIDC)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./terraform
+        run: terraform plan -out=tfplan -input=false
+
+      - name: Terraform Apply (only on push to master)
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        working-directory: ./terraform
+        # Apply will use TF_VAR_* environment variables provisioned above from secrets
+        run: terraform apply -input=false -auto-approve tfplan
